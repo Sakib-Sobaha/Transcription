@@ -1,15 +1,23 @@
+import os
+import io
 import time
 import datetime
 
 import numpy as np
 import torch
+import soundfile as sf
 import uvicorn
 import whisper
+from loguru import logger
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from transformers import pipeline
+from df import init_df
+
 
 from postprocess import postprocess_text
+from preprocess.denoiser import denoise
+
 
 app = FastAPI()
 
@@ -40,7 +48,7 @@ async def english_transcription(sound: UploadFile = File(...)):
         contents, np.int16).flatten().astype(np.float32) / 32768.0)
     
     data_size = audio_data.size()[0]
-    result = model.transcribe(audio_data)['text']
+    result = model_en.transcribe(audio_data)['text']
 
     time_taken = time.time() - start_time
     data = {
@@ -58,16 +66,12 @@ async def bengali_transcription(sound: UploadFile = File(...)):
 
     contents = await sound.read()
     result = model_bn(contents)['text']
-    # result = result.replace('ï¿½', '')
     result = postprocess_text(result)
 
     time_taken = time.time() - start_time
-    # data = {
-    #     "time_taken": time_taken,
-    #     "result": result
-    # }
 
-    print("At:", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), ", Chars:", len(result), ", Time_taken:", round(time_taken, 3))
+    # print("At:", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), ", Chars:", len(result), ", Time_taken:", round(time_taken, 3))
+    logger.success(f"Chars: {len(result)}, Time_taken: {round(time_taken, 3)}")
     data = {
         "taskType": "synesis-asr",
         "output": [{"source": result}],
@@ -78,9 +82,61 @@ async def bengali_transcription(sound: UploadFile = File(...)):
     return data
 
 
+@app.post("/bn-preprocess/")
+async def bengali_transcription_with_preprocessing(sound: UploadFile = File(...), apply_denoiser: bool = False):
+    start_time = time.time()
+
+    try:
+        contents = await sound.read()  
+
+        # converting byte audio to wav
+        bytes_io = io.BytesIO(contents)
+        audio_data, sample_rate = sf.read(bytes_io)
+
+        if not os.path.exists('temp'):
+            os.makedirs('temp')
+        file_path = os.path.join('./temp', sound.filename)
+        sf.write(file_path, audio_data, sample_rate)
+
+
+        if apply_denoiser == True:
+            denoised_audio_path = denoise(denoiser_model, denoiser_df_state, file_path, sound.filename)
+            file_path = denoised_audio_path
+            print(file_path)
+
+        result = model_bn(file_path)['text']
+        # print(result)
+        result = postprocess_text(result)
+
+        time_taken = time.time() - start_time
+
+        logger.success(f"Chars: {len(result)}, Time_taken: {round(time_taken, 3)}")
+        data = {
+            "status": 200,
+            "taskType": "synesis-asr",
+            "output": [{"source": result}],
+            "char_count": len(result),
+            "time_taken": time_taken,
+        }
+
+        return data
+    except Exception as e:
+        time_taken = time.time() - start_time
+        logger.error(f"Failed. Error Message: {e}")
+        data = {
+            "status": 400,
+            "taskType": "synesis-asr",
+            "message": e,
+            "time_taken": time_taken,
+        }
+
+        return data
+
 if __name__ == "__main__":
-    model = whisper.load_model("small.en", device='cuda')
+    model_en = whisper.load_model("small.en", device='cuda')
     model_bn = pipeline('automatic-speech-recognition',
                     model="sazzad-sit/whisper-small-bn-3ds", max_new_tokens=448, \
                            device=0, batch_size=16, chunk_length_s=25)
+    denoiser_model, denoiser_df_state, _ = init_df()
+
     uvicorn.run(app, host="0.0.0.0", port=9852)
