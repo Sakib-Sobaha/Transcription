@@ -1,7 +1,6 @@
 import os
 import io
 import time
-import datetime
 
 import numpy as np
 import torch
@@ -17,6 +16,7 @@ from df import init_df
 
 from postprocess import postprocess_text
 from preprocess.denoiser import denoise
+from preprocess.vad import vad
 
 
 app = FastAPI()
@@ -82,8 +82,9 @@ async def bengali_transcription(sound: UploadFile = File(...)):
     return data
 
 
-@app.post("/bn-preprocess/")
-async def bengali_transcription_with_preprocessing(sound: UploadFile = File(...), apply_denoiser: bool = False):
+@app.post("/bn-enhanced/")
+async def bengali_transcription_enhanced(sound: UploadFile = File(...), \
+                                            apply_denoiser: bool = False, apply_vad: bool = False):
     start_time = time.time()
 
     try:
@@ -102,10 +103,15 @@ async def bengali_transcription_with_preprocessing(sound: UploadFile = File(...)
         if apply_denoiser == True:
             denoised_audio_path = denoise(denoiser_model, denoiser_df_state, file_path, sound.filename)
             file_path = denoised_audio_path
-            print(file_path)
+            # print(file_path)
+
+
+        if apply_vad == True:
+            vad_audio_path = vad(vad_model, vad_utils, file_path, sound.filename)
+            file_path = vad_audio_path
+            # print(file_path)
 
         result = model_bn(file_path)['text']
-        # print(result)
         result = postprocess_text(result)
 
         time_taken = time.time() - start_time
@@ -138,5 +144,9 @@ if __name__ == "__main__":
                     model="sazzad-sit/whisper-small-bn-3ds", max_new_tokens=448, \
                            device=0, batch_size=16, chunk_length_s=25)
     denoiser_model, denoiser_df_state, _ = init_df()
+    vad_model, vad_utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
+                              model='silero_vad',
+                              force_reload=True,
+                              onnx=False)
 
     uvicorn.run(app, host="0.0.0.0", port=9852)
