@@ -139,7 +139,7 @@ async def bengali_transcription_enhanced(sound: UploadFile = File(...), \
         data = {
             "status": 400,
             "taskType": "synesis-asr",
-            "message": e,
+            "message": str(e),
             "time_taken": time_taken,
         }
 

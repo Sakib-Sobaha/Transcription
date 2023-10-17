@@ -1,0 +1,10 @@
+version: '3'
+services:
+  asr-pipeline:
+    build: .
+    ports:
+      - "9852:9852"
+    volumes:
+      - ~/stt/asr-pipeline/temp/:/usr/bin/asr-pipeline/static
+      
+    hostname: 127.0.0.1
