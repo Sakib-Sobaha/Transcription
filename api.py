@@ -17,6 +17,7 @@ from df import init_df
 from postprocess import postprocess_text
 from preprocess.denoiser import denoise
 from preprocess.vad import vad
+from azure_asr import azure_asr
 
 
 app = FastAPI()
@@ -84,7 +85,9 @@ async def bengali_transcription(sound: UploadFile = File(...)):
 
 @app.post("/bn-enhanced/")
 async def bengali_transcription_enhanced(sound: UploadFile = File(...), \
-                                            apply_denoiser: bool = False, apply_vad: bool = False):
+                                            apply_denoiser: bool = False, \
+                                            apply_vad: bool = False, \
+                                            asr: str = 'whisper'):
     start_time = time.time()
 
     try:
@@ -111,12 +114,16 @@ async def bengali_transcription_enhanced(sound: UploadFile = File(...), \
             file_path = vad_audio_path
             # print(file_path)
 
-        result = model_bn(file_path)['text']
-        result = postprocess_text(result)
+        if asr.lower() == 'azure':
+            result = azure_asr(file_path)
+        
+        else:
+            result = model_bn(file_path)['text']
+            result = postprocess_text(result)
 
-        time_taken = time.time() - start_time
+        time_taken = round(time.time() - start_time, 3)
 
-        logger.success(f"Chars: {len(result)}, Time_taken: {round(time_taken, 3)}")
+        logger.success(f"Chars: {len(result)}, Time_taken: {time_taken}")
         data = {
             "status": 200,
             "taskType": "synesis-asr",
