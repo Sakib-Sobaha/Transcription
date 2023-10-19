@@ -148,7 +148,7 @@ async def bengali_transcription_enhanced(sound: UploadFile = File(...), \
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    device_int = 0 if device=="cuda" else -1
+    device_int = 0 if str(device)=="cuda" else -1
 
     model_en = whisper.load_model("small.en", device=device)
     model_bn = pipeline('automatic-speech-recognition',
