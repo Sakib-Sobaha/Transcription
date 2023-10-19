@@ -1,28 +1,35 @@
-FROM python:3.11-slim
+FROM python:3.11
 LABEL mantainer="Synesis AI"
 
 RUN pip install --upgrade pip
 RUN apt update 
-RUN apt-get install -y wget
+RUN apt install -y wget
 
 
 WORKDIR /asr-pipeline
 
-COPY requirements.txt .
+
+# Update package lists and install required packages
+RUN apt-get update && \
+    apt-get install -y wget tar build-essential libssl-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Download and install OpenSSL
+RUN wget -O - https://www.openssl.org/source/openssl-1.1.1u.tar.gz | tar zxf - && \
+    cd openssl-1.1.1u && \
+    ./config --prefix=/usr/local && \
+    make -j $(nproc) && \
+    make install_sw install_ssldirs
+
+# Clean up temporary files
+RUN rm -rf /tmp/openssl-1.1.1u
+
+# Configure ldconfig and set SSL_CERT_DIR environment variable
+RUN ldconfig -v && \
+    echo 'export SSL_CERT_DIR=/etc/ssl/certs' >> /root/.bashrc
 
 COPY . .
 
 RUN pip install -r requirements.txt
-
-COPY . .
-
-RUN wget -O - https://www.openssl.org/source/openssl-1.1.1u.tar.gz | tar zxf -
-RUN cd openssl-1.1.1u
-RUN ./config --prefix=/usr/local
-RUN make -j $(nproc)
-RUN sudo make install_sw install_ssldirs
-RUN sudo ldconfig -v
-RUN export SSL_CERT_DIR=/etc/ssl/certs
-RUN cd ..
 
 CMD ["python", "-W ignore", "api.py"]
