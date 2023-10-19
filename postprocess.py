@@ -1,7 +1,7 @@
 
 
 def remove_unncessary_characters(sentence):
-    sentence = sentence.replace('ï¿½', '')
+    sentence = sentence.replace('�', '')
     return sentence
 
 
