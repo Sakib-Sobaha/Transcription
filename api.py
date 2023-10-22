@@ -16,6 +16,7 @@ from df import init_df
 
 from postprocess import postprocess_text
 from preprocess.denoiser import denoise
+from preprocess.normalize import normalize_audio
 from preprocess.vad import vad
 from azure_asr import azure_asr
 
@@ -85,6 +86,7 @@ async def bengali_transcription(sound: UploadFile = File(...)):
 
 @app.post("/bn-enhanced/")
 async def bengali_transcription_enhanced(sound: UploadFile = File(...), \
+                                            apply_normalizer: bool = False, \
                                             apply_denoiser: bool = False, \
                                             apply_vad: bool = False, \
                                             asr: str = 'whisper'):
@@ -102,6 +104,9 @@ async def bengali_transcription_enhanced(sound: UploadFile = File(...), \
             os.makedirs('temp')
         file_path = os.path.join('./temp', sound.filename)
         sf.write(file_path, audio_data, sample_rate)
+
+        if apply_normalizer == True:
+            file_path = normalize_audio(file_path)
 
 
         if apply_denoiser == True:
@@ -140,6 +145,7 @@ async def bengali_transcription_enhanced(sound: UploadFile = File(...), \
         data = {
             "status": 400,
             "taskType": task_type,
+            "output": [{"source": None}],
             "message": str(e),
             "time_taken": time_taken,
         }
