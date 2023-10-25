@@ -43,6 +43,22 @@ def remove_consecutive_words(sentence):
     return modified_sentence
 
 
+def fix_repetition(text, max_count):
+    uniq_word_counter = {}
+    words = text.split()
+    for word in text.split():
+        if word not in uniq_word_counter:
+            uniq_word_counter[word] = 1
+        else:
+            uniq_word_counter[word] += 1
+
+    for word, count in uniq_word_counter.items():
+        if count > max_count:
+            words = [w for w in words if w != word]
+    text = " ".join(words)
+    return text
+
+
 def remove_long_words(sentence, max_length=15):
     # Split the sentence into words
     words = sentence.split()
@@ -57,8 +73,8 @@ def remove_long_words(sentence, max_length=15):
 
 
 def postprocess_text(sentence):
-    return remove_consecutive_words(remove_unncessary_characters(remove_long_words(sentence)))
-
+    postprocessed_text = remove_consecutive_words(remove_unncessary_characters(remove_long_words(sentence)))
+    return fix_repetition(postprocessed_text, 3)
 
 
 if __name__ == "__main__":
