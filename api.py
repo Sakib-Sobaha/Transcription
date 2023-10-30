@@ -89,11 +89,17 @@ async def bengali_transcription_enhanced(sound: UploadFile = File(...), \
                                             apply_normalizer: bool = False, \
                                             apply_denoiser: bool = False, \
                                             apply_vad: bool = False, \
-                                            asr: str = 'whisper'):
+                                            asr: str = 'synesis'):
     start_time = time.time()
-    task_type = 'azure-asr' if asr.lower() == 'azure' else 'synesis-asr'
+
+    asr_names = ['synesis', 'azure', 'bengali-ai']
+    task_type = 'Unknown' if asr.lower() not in asr_names else asr.lower() + '-asr'
+
 
     try:
+        if asr.lower() not in asr_names:
+            raise NameError(f"Allowed ASR types are: {asr_names}")
+        
         contents = await sound.read()  
 
         # converting byte audio to wav
@@ -122,10 +128,14 @@ async def bengali_transcription_enhanced(sound: UploadFile = File(...), \
 
         if asr.lower() == 'azure':
             result = azure_asr(file_path)
-        
-        else:
+
+        elif asr.lower() == 'synesis':
             result = model_bn(file_path)['text']
             result = postprocess_text(result)
+        
+        else:
+            # raise NameError(f"Allowed ASR types are: {asr_names}")
+            pass
 
         time_taken = round(time.time() - start_time, 3)
 
@@ -140,7 +150,7 @@ async def bengali_transcription_enhanced(sound: UploadFile = File(...), \
 
         return data
     except Exception as e:
-        time_taken = time.time() - start_time
+        time_taken = round(time.time() - start_time, 3)
         logger.error(f"Failed. Error Message: {e}")
         data = {
             "status": 400,
@@ -153,13 +163,33 @@ async def bengali_transcription_enhanced(sound: UploadFile = File(...), \
         return data
 
 if __name__ == "__main__":
+    # Whisper Configs
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     device_int = 0 if str(device)=="cuda" else -1
+
+    CHUNK_LENGTH_S = 20.1
+    BATCH_SIZE = 16
 
     model_en = whisper.load_model("small.en", device=device)
     model_bn = pipeline('automatic-speech-recognition',
                     model="sazzad-sit/whisper-small-bn-3ds", max_new_tokens=448, \
-                           device=device_int, batch_size=16, chunk_length_s=25)
+                           device=device_int, batch_size=16, chunk_length_s=CHUNK_LENGTH_S)
+    
+
+    model_kaggle_1st = pipeline(task="automatic-speech-recognition",
+                model=os.path.join(os.getcwd(), 'models/kaggle-1st/bengali-whisper-medium'),
+                tokenizer= os.path.join(os.getcwd(), 'models/kaggle-1st/bengali-whisper-medium'),
+                chunk_length_s=CHUNK_LENGTH_S, device=device_int, batch_size=BATCH_SIZE)
+    model_kaggle_1st.model.config.forced_decoder_ids = model_kaggle_1st.tokenizer.get_decoder_prompt_ids(language="bn", task="transcribe")
+
+    PUNCT_MODELS = [
+        os.path.join(os.getcwd(), 'models/kaggle-1st/punct-model-6layers/'),
+        os.path.join(os.getcwd(), 'models/kaggle-1st/punct-model-8layers/'),
+        os.path.join(os.getcwd(), 'models/kaggle-1st/punct-model-11layers/'),
+        os.path.join(os.getcwd(), 'models/kaggle-1st/punct-model-12layers/')
+    ]
+        
+    
     denoiser_model, denoiser_df_state, _ = init_df()
     vad_model, vad_utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
                               model='silero_vad',
