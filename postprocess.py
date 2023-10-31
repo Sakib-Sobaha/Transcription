@@ -1,4 +1,4 @@
-
+import torch
 
 def remove_unncessary_characters(sentence):
     sentence = sentence.replace('�', '')
@@ -70,6 +70,37 @@ def remove_long_words(sentence, max_length=15):
     modified_sentence = ' '.join(filtered_words)
     
     return modified_sentence
+
+
+def punctuate(text, models, tokenizer):
+    PUNCT_WEIGHTS = [[1.0, 1.4, 1.0, 0.8]]
+    
+    input_ids = tokenizer(text).input_ids
+    with torch.no_grad():
+        model = models[0]
+        logits = torch.nn.functional.softmax(
+            model(input_ids=torch.LongTensor([input_ids]).cuda()).logits[0, 1:-1],
+            dim=1).cpu()
+        for model in models[1:]:
+            logits += torch.nn.functional.softmax(
+                model(input_ids=torch.LongTensor([input_ids]).cuda()).logits[0, 1:-1],
+                dim=1).cpu()
+        logits = logits / len(models)
+        logits *= torch.FloatTensor(PUNCT_WEIGHTS)
+        label_ids = torch.argmax(logits, dim=-1)
+
+        tokens = tokenizer(text, add_special_tokens=False).input_ids
+        punct_text = ""
+        for index, token in enumerate(tokens):
+            token_str = tokenizer.decode(token)
+            if '##' not in token_str:
+                punct_text += " " + token_str
+            else:
+                punct_text += token_str[2:]
+            punct_text += ['', '।', ',', '?'][label_ids[index].item()]
+
+    punct_text = punct_text.strip()
+    return punct_text
 
 
 def postprocess_text(sentence):

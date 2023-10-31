@@ -10,11 +10,11 @@ import whisper
 from loguru import logger
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from transformers import pipeline
+from transformers import pipeline, AutoModelForTokenClassification, AutoTokenizer
 from df import init_df
 
 
-from postprocess import postprocess_text
+from postprocess import postprocess_text, punctuate
 from preprocess.denoiser import denoise
 from preprocess.normalize import normalize_audio
 from preprocess.vad import vad
@@ -127,11 +127,18 @@ async def bengali_transcription_enhanced(sound: UploadFile = File(...), \
             # print(file_path)
 
         if asr.lower() == 'azure':
-            result = azure_asr(file_path)
+            result = azure_asr(file_path).strip()
 
         elif asr.lower() == 'synesis':
-            result = model_bn(file_path)['text']
+            result = model_bn(file_path)['text'].strip()
             result = postprocess_text(result)
+
+        elif asr.lower() == 'bengali-ai':
+            result = model_kaggle_1st(file_path)['text'].strip()
+            result = postprocess_text(result)
+            result = punctuate(text=result, models=punc_models, tokenizer=punc_tokenizer)
+            if result[-1] not in ['।', '?', ',']:
+                result = result + '।'
         
         else:
             # raise NameError(f"Allowed ASR types are: {asr_names}")
@@ -188,6 +195,11 @@ if __name__ == "__main__":
         os.path.join(os.getcwd(), 'models/kaggle-1st/punct-model-11layers/'),
         os.path.join(os.getcwd(), 'models/kaggle-1st/punct-model-12layers/')
     ]
+
+    punc_models = [
+        AutoModelForTokenClassification.from_pretrained(f).eval().cuda() for f in PUNCT_MODELS
+    ]
+    punc_tokenizer = AutoTokenizer.from_pretrained(PUNCT_MODELS[0])
         
     
     denoiser_model, denoiser_df_state, _ = init_df()
@@ -196,4 +208,4 @@ if __name__ == "__main__":
                               force_reload=True,
                               onnx=False)
 
-    uvicorn.run(app, host="0.0.0.0", port=9852)
+    uvicorn.run(app, host="0.0.0.0", port=42042)
