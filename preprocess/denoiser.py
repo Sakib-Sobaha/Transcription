@@ -26,7 +26,7 @@ from df.enhance import load_audio, save_audio
 #     return enhanced_audio
 
 
-def denoise(model, df_state, file_path, filename):
+def denoise(model, df_state, file_path):
     audio, info = load_audio(file_path, sr=df_state.sr())
 
     # Split audio into 10min chunks
@@ -41,7 +41,8 @@ def denoise(model, df_state, file_path, filename):
 
     # assert enhanced.shape == audio.shape, 'Enhanced audio shape does not match original audio shape.'
 
-    path_to_save = os.path.join('./temp', 'denoised_' + filename)
+    # path_to_save = os.path.join('./temp', 'denoised_' + filename) # save as diffent file
+    path_to_save = file_path # overwrite the file
 
     save_audio(path_to_save, enhanced, sr=df_state.sr())
 

@@ -6,7 +6,7 @@ import os
 
 SAMPLING_RATE = 16000
 
-def vad(model, utils, audio_path, filename):
+def vad(model, utils, audio_path):
     (get_speech_timestamps, save_audio, read_audio, VADIterator, collect_chunks) = utils
 
     wav = read_audio(audio_path, sampling_rate=SAMPLING_RATE)
@@ -14,7 +14,8 @@ def vad(model, utils, audio_path, filename):
     speech_timestamps = get_speech_timestamps(wav, model, sampling_rate=SAMPLING_RATE)
     # pprint(speech_timestamps)
 
-    path_to_save = os.path.join('./temp', 'vad_' + filename)
+#     path_to_save = os.path.join('./temp', 'vad_' + filename) # save as diffent file
+    path_to_save = audio_path
 
     save_audio(path_to_save,
            collect_chunks(speech_timestamps, wav), sampling_rate=SAMPLING_RATE) 

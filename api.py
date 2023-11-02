@@ -1,6 +1,9 @@
 import os
 import io
 import time
+import shutil
+import uuid
+import zipfile
 
 import numpy as np
 import torch
@@ -19,6 +22,7 @@ from preprocess.denoiser import denoise
 from preprocess.normalize import normalize_audio
 from preprocess.vad import vad
 from azure_asr import azure_asr
+from asr_utils import find_audio_files
 
 
 app = FastAPI()
@@ -116,15 +120,10 @@ async def bengali_transcription_enhanced(sound: UploadFile = File(...), \
 
 
         if apply_denoiser == True:
-            denoised_audio_path = denoise(denoiser_model, denoiser_df_state, file_path, sound.filename)
-            file_path = denoised_audio_path
-            # print(file_path)
-
+            file_path = denoise(denoiser_model, denoiser_df_state, file_path)
 
         if apply_vad == True:
-            vad_audio_path = vad(vad_model, vad_utils, file_path, sound.filename)
-            file_path = vad_audio_path
-            # print(file_path)
+            file_path = vad(vad_model, vad_utils, file_path)
 
         if asr.lower() == 'azure':
             result = azure_asr(file_path).strip()
@@ -139,6 +138,122 @@ async def bengali_transcription_enhanced(sound: UploadFile = File(...), \
             result = punctuate(text=result, models=punc_models, tokenizer=punc_tokenizer)
             if result[-1] not in ['।', '?', ',']:
                 result = result + '।'
+        
+        else:
+            pass
+
+        time_taken = round(time.time() - start_time, 3)
+
+        logger.success(f"Chars: {len(result)}, Time_taken: {time_taken}")
+        data = {
+            "status": 200,
+            "taskType": task_type,
+            "output": [{"source": result}],
+            "char_count": len(result),
+            "time_taken": time_taken,
+        }
+
+        return data
+    except Exception as e:
+        time_taken = round(time.time() - start_time, 3)
+        logger.error(f"Failed. Error Message: {e}")
+        data = {
+            "status": 400,
+            "taskType": task_type,
+            "output": [{"source": None}],
+            "message": str(e),
+            "time_taken": time_taken,
+        }
+
+        return data
+    
+
+
+
+@app.post("/bn-enhanced-zip")
+async def bengali_transcription_enhanced_zip(file: UploadFile = File(...), \
+                                                apply_normalizer: bool = False, \
+                                                apply_denoiser: bool = False, \
+                                                apply_vad: bool = False, \
+                                                asr: str = 'synesis'): 
+    
+    start_time = time.time()
+
+    asr_names = ['synesis', 'azure', 'bengali-ai']
+    task_type = 'Unknown' if asr.lower() not in asr_names else asr.lower() + '-asr'
+
+
+    try:
+        if asr.lower() not in asr_names:
+            raise NameError(f"Allowed ASR types are: {asr_names}")
+        
+        # handle the zip file only
+        if file.filename.endswith(".zip"):
+            try:
+                uid = uuid.uuid1()
+                extraction_dir = os.path.join("./temp", str(uid))
+                os.makedirs(extraction_dir, exist_ok=True)
+
+                # Save the uploaded ZIP file to a temporary location
+                with open(file.filename, "wb") as f:
+                    shutil.copyfileobj(file.file, f)
+
+                with zipfile.ZipFile(file.filename, 'r') as zip_ref:
+                    zip_ref.extractall(extraction_dir)
+
+            finally:
+                os.remove(file.filename)
+
+        else:
+            raise TypeError("Only ZIP file is allowed.") 
+
+        audio_files = find_audio_files(extraction_dir)
+        
+        if apply_normalizer == True:
+            for audio in audio_files:
+                _ = normalize_audio(audio)
+
+
+        if apply_denoiser == True:
+            for audio in audio_files:
+                _ = denoise(denoiser_model, denoiser_df_state, audio)
+
+
+        if apply_vad == True:
+            for audio in audio_files:
+                _ = vad(vad_model, vad_utils, audio)
+
+        
+        # Speeech Recognition Algorithms
+        result = {}
+
+        if asr.lower() == 'azure':
+            for audio in audio_files:
+                file_name = audio.split('/')[-1]
+                pred = azure_asr(audio).strip()
+                result[file_name] = pred
+
+        elif asr.lower() == 'synesis':
+            texts = model_bn(audio_files)
+
+            for f, text in zip(audio_files, texts):
+                file_name = f.split('/')[-1]
+                pred = text['text'].strip()
+                pred = postprocess_text(pred)
+                result[file_name] = pred
+            
+
+        elif asr.lower() == 'bengali-ai':
+            texts = model_kaggle_1st(audio_files)
+
+            for f, text in zip(audio_files, texts):
+                file_name = f.split('/')[-1]
+                pred = text['text'].strip()
+                pred = postprocess_text(pred)
+                pred = punctuate(text=pred, models=punc_models, tokenizer=punc_tokenizer)
+                if pred[-1] not in ['।', '?', ',']:
+                    pred = pred + '।'
+                result[file_name] = pred
         
         else:
             # raise NameError(f"Allowed ASR types are: {asr_names}")
@@ -168,6 +283,9 @@ async def bengali_transcription_enhanced(sound: UploadFile = File(...), \
         }
 
         return data
+    finally:
+        shutil.rmtree(extraction_dir)
+
 
 if __name__ == "__main__":
     # Whisper Configs
