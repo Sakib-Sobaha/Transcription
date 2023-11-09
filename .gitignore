@@ -176,3 +176,8 @@ pyrightconfig.json
 # End of https://www.toptal.com/developers/gitignore/api/python
 
 temp/
+models/
+
+.pth
+nohup.out
+openssl-1.1.1u
