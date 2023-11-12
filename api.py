@@ -326,4 +326,4 @@ if __name__ == "__main__":
                               force_reload=True,
                               onnx=False)
 
-    uvicorn.run(app, host="0.0.0.0", port=42042)
+    uvicorn.run(app, host="0.0.0.0", port=9852)
