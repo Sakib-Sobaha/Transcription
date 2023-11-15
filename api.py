@@ -93,7 +93,7 @@ async def bengali_transcription_enhanced(sound: UploadFile = File(...), \
                                             apply_normalizer: bool = False, \
                                             apply_denoiser: bool = False, \
                                             apply_vad: bool = False, \
-                                            asr: str = 'synesis'):
+                                            asr: str = 'bengali-ai'):
     start_time = time.time()
 
     asr_names = ['synesis', 'azure', 'bengali-ai']
@@ -117,7 +117,6 @@ async def bengali_transcription_enhanced(sound: UploadFile = File(...), \
 
         if apply_normalizer == True:
             file_path = normalize_audio(file_path)
-
 
         if apply_denoiser == True:
             file_path = denoise(denoiser_model, denoiser_df_state, file_path)
@@ -160,7 +159,7 @@ async def bengali_transcription_enhanced(sound: UploadFile = File(...), \
         data = {
             "status": 400,
             "taskType": task_type,
-            "output": [{"source": None}],
+            "output": [{"source": ""}],
             "message": str(e),
             "time_taken": time_taken,
         }
@@ -175,7 +174,7 @@ async def bengali_transcription_enhanced_zip(file: UploadFile = File(...), \
                                                 apply_normalizer: bool = False, \
                                                 apply_denoiser: bool = False, \
                                                 apply_vad: bool = False, \
-                                                asr: str = 'synesis'): 
+                                                asr: str = 'bengali-ai'): 
     
     start_time = time.time()
 
@@ -208,6 +207,7 @@ async def bengali_transcription_enhanced_zip(file: UploadFile = File(...), \
             raise TypeError("Only ZIP file is allowed.") 
 
         audio_files = find_audio_files(extraction_dir)
+        failed_dict = {}
         
         if apply_normalizer == True:
             for audio in audio_files:
@@ -221,7 +221,11 @@ async def bengali_transcription_enhanced_zip(file: UploadFile = File(...), \
 
         if apply_vad == True:
             for audio in audio_files:
-                _ = vad(vad_model, vad_utils, audio)
+                try:
+                    _ = vad(vad_model, vad_utils, audio)
+                except:
+                    failed_dict[audio.split('/')[-1]] = ""
+                    audio_files.remove(audio)
 
         
         # Speeech Recognition Algorithms
@@ -261,12 +265,15 @@ async def bengali_transcription_enhanced_zip(file: UploadFile = File(...), \
 
         time_taken = round(time.time() - start_time, 3)
 
+        result.update(failed_dict)
+        result = dict(sorted(result.items()))
+
         logger.success(f"Chars: {len(result)}, Time_taken: {time_taken}")
         data = {
             "status": 200,
             "taskType": task_type,
             "output": [{"source": result}],
-            "char_count": len(result),
+            "file_count": len(result),
             "time_taken": time_taken,
         }
 
