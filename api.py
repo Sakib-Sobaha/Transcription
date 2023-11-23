@@ -11,7 +11,7 @@ import soundfile as sf
 import uvicorn
 import whisper
 from loguru import logger
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
 from transformers import pipeline, AutoModelForTokenClassification, AutoTokenizer
 from df import init_df
@@ -89,11 +89,13 @@ async def bengali_transcription(sound: UploadFile = File(...)):
 
 
 @app.post("/bn-enhanced/")
-async def bengali_transcription_enhanced(sound: UploadFile = File(...), \
+async def bengali_transcription_enhanced(request: Request, sound: UploadFile = File(...), \
                                             apply_normalizer: bool = False, \
                                             apply_denoiser: bool = False, \
                                             apply_vad: bool = False, \
                                             asr: str = 'bengali-ai'):
+    logger.info(f"host: {request.client.host}, api_endpoint: bn-enhanced-zip, normalizer: {apply_normalizer}, denoiser: {apply_normalizer}, vad: {apply_vad}, asr: {asr}")
+    
     start_time = time.time()
 
     asr_names = ['synesis', 'azure', 'bengali-ai']
@@ -170,12 +172,12 @@ async def bengali_transcription_enhanced(sound: UploadFile = File(...), \
 
 
 @app.post("/bn-enhanced-zip")
-async def bengali_transcription_enhanced_zip(file: UploadFile = File(...), \
+async def bengali_transcription_enhanced_zip(request: Request, file: UploadFile = File(...), \
                                                 apply_normalizer: bool = False, \
                                                 apply_denoiser: bool = False, \
                                                 apply_vad: bool = False, \
                                                 asr: str = 'bengali-ai'): 
-    
+    logger.info(f"host: {request.client.host}, api_endpoint: bn-enhanced-zip, normalizer: {apply_normalizer}, denoiser: {apply_normalizer}, vad: {apply_vad}, asr: {asr}")
     start_time = time.time()
 
     asr_names = ['synesis', 'azure', 'bengali-ai']
@@ -233,7 +235,7 @@ async def bengali_transcription_enhanced_zip(file: UploadFile = File(...), \
 
         if asr.lower() == 'azure':
             for audio in audio_files:
-                file_name = audio.split('/')[-1]
+                file_name = f.split('\\')[-1] if os.name == 'nt' else f.split('/')[-1]
                 pred = azure_asr(audio).strip()
                 result[file_name] = pred
 
@@ -241,7 +243,7 @@ async def bengali_transcription_enhanced_zip(file: UploadFile = File(...), \
             texts = model_bn(audio_files)
 
             for f, text in zip(audio_files, texts):
-                file_name = f.split('/')[-1]
+                file_name = f.split('\\')[-1] if os.name == 'nt' else f.split('/')[-1]
                 pred = text['text'].strip()
                 pred = postprocess_text(pred)
                 result[file_name] = pred
@@ -251,7 +253,7 @@ async def bengali_transcription_enhanced_zip(file: UploadFile = File(...), \
             texts = model_kaggle_1st(audio_files)
 
             for f, text in zip(audio_files, texts):
-                file_name = f.split('/')[-1]
+                file_name = f.split('\\')[-1] if os.name == 'nt' else f.split('/')[-1]
                 pred = text['text'].strip()
                 pred = postprocess_text(pred)
                 pred = punctuate(text=pred, models=punc_models, tokenizer=punc_tokenizer)
@@ -268,7 +270,7 @@ async def bengali_transcription_enhanced_zip(file: UploadFile = File(...), \
         result.update(failed_dict)
         result = dict(sorted(result.items()))
 
-        logger.success(f"Chars: {len(result)}, Time_taken: {time_taken}")
+        logger.success(f"file_count: {len(result)}, Time_taken: {time_taken}")
         data = {
             "status": 200,
             "taskType": task_type,
