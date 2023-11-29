@@ -94,7 +94,7 @@ async def bengali_transcription_enhanced(request: Request, sound: UploadFile = F
                                             apply_denoiser: bool = False, \
                                             apply_vad: bool = False, \
                                             asr: str = 'bengali-ai'):
-    logger.info(f"host: {request.client.host}, api_endpoint: bn-enhanced-zip, normalizer: {apply_normalizer}, denoiser: {apply_normalizer}, vad: {apply_vad}, asr: {asr}")
+    logger.info(f"host: {request.client.host}, api_endpoint: bn-enhanced, normalizer: {apply_normalizer}, denoiser: {apply_denoiser}, vad: {apply_vad}, asr: {asr}")
     
     start_time = time.time()
 
@@ -177,7 +177,7 @@ async def bengali_transcription_enhanced_zip(request: Request, file: UploadFile 
                                                 apply_denoiser: bool = False, \
                                                 apply_vad: bool = False, \
                                                 asr: str = 'bengali-ai'): 
-    logger.info(f"host: {request.client.host}, api_endpoint: bn-enhanced-zip, normalizer: {apply_normalizer}, denoiser: {apply_normalizer}, vad: {apply_vad}, asr: {asr}")
+    logger.info(f"host: {request.client.host}, api_endpoint: bn-enhanced-zip, normalizer: {apply_normalizer}, denoiser: {apply_denoiser}, vad: {apply_vad}, asr: {asr}")
     start_time = time.time()
 
     asr_names = ['synesis', 'azure', 'bengali-ai']
